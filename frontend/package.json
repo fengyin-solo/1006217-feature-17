@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "verify": "tsc -p tsconfig.verify.json && node -e \"require('fs').writeFileSync('.verify-tmp/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node .verify-tmp/scripts/verify-cooling.js && node .verify-tmp/scripts/verify-cooling-service.js"
   },
   "dependencies": {
     "pinia": "^2.1.7",

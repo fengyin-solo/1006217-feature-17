@@ -34,5 +34,29 @@ export type ActionResult = {
 
 export type OverviewResult = {
   cards: { label: string; value: number }[]
-  modules: { name: string; created: number; pending: number; abnormal: number }[]
+  modules: { key: string; name: string; created: number; pending: number; abnormal: number; scope: string }[]
+}
+
+// 技术供水列表的收窄条件与排布方式：条件随会话持久化，翻页、跳走再回来都不丢。
+export type CoolingSortKey =
+  | 'default'
+  | 'pressureAsc'
+  | 'pressureDesc'
+  | 'filterDiffAsc'
+  | 'filterDiffDesc'
+
+export type CoolingQuery = {
+  systemNo: string
+  supplyType: string
+  pressureBand: string
+  sort: CoolingSortKey
+  page: number
+}
+
+export type CoolingPageResult = {
+  items: EntryRow[]
+  total: number
+  page: number
+  size: number
+  pages: number
 }

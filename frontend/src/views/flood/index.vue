@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>泄洪操作管理</h2>
-        <p class="page-desc">维护泄洪操作，围绕操作编号、泄洪闸号、开启孔数、泄洪流量做登记、筛选与状态流转。</p>
+        <p class="page-desc">维护泄洪操作，围绕操作编号、泄洪闸号、开启孔数、泄洪流量做登记、筛选与状态流转；技术供水的处理结果落到本页待办清单。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记泄洪操作</button>
@@ -12,10 +12,21 @@
     </header>
 
     <div class="stat-row">
-      <article v-for="item in stats" :key="item.label" class="stat-card">
+      <article v-for="item in stats" :key="item.label" class="stat-card" :class="{ 'stat-highlight': item.highlight }">
         <span class="stat-label">{{ item.label }}</span>
         <strong class="stat-value">{{ item.value }}</strong>
       </article>
+    </div>
+
+    <div v-if="todoRows.length" class="todo-panel">
+      <h3 class="todo-title">技术供水联动待办（{{ todoRows.length }} 条）</h3>
+      <ul class="todo-list">
+        <li v-for="row in todoRows" :key="String(row.id)">
+          <span class="todo-text">{{ row['待办事项'] }}</span>
+          <span class="todo-meta">{{ row['操作时间'] }} · {{ row['操作人员'] }} · {{ row.status }}</span>
+        </li>
+      </ul>
+      <p class="todo-hint">待办条数与技术供水列表、运营概览联动：在供水页落一条，这里与概览待处理数同步增加。</p>
     </div>
 
     <p class="status-legend">
@@ -42,8 +53,8 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+        <tr v-for="row in rows" :key="String(row.id)" :class="{ 'row-todo': String(row['待办事项']) }">
+          <td v-for="column in columns" :key="column">{{ row[column] || '—' }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,13 +69,13 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无泄洪操作数据，可先登记泄洪操作</td>
+          <td :colspan="columns.length + 2" class="empty-state">暂无泄洪操作数据</td>
         </tr>
       </tbody>
     </table>
 
     <footer class="page-foot">
-      <span>共 {{ total }} 条泄洪操作记录</span>
+      <span>共 {{ total }} 条泄洪操作记录（含技术供水联动待办 {{ todoRows.length }} 条）</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -79,23 +90,33 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { listRows } from '@/data/local-store'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('flood')
-const columns = ["操作编号", "泄洪闸号", "开启孔数", "泄洪流量", "下游预警", "操作时间", "操作人员", "操作状态"]
+const columns = ["操作编号", "泄洪闸号", "开启孔数", "泄洪流量", "下游预警", "操作时间", "操作人员", "待办事项", "操作状态"]
 const actions = ["提交审批", "开启泄洪", "结束泄洪"]
 const statuses = ["待审批", "已批准", "泄洪中", "已结束"]
-const stats = [{"label": "待审批操作", "value": 0}, {"label": "泄洪中闸门", "value": 0}, {"label": "今日泄洪量", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
-const filterFields = columns.slice(0, 3)
+const filterFields = ["操作编号", "泄洪闸号", "开启孔数"]
+
+const allRows = ref<EntryRow[]>([])
+const todoRows = computed(() => allRows.value.filter((row) => String(row['待办事项'] ?? '') !== ''))
+
+const stats = computed(() => [
+  { label: '待审批操作', value: allRows.value.filter((row) => String(row.status) === '待审批').length, highlight: false },
+  { label: '泄洪中闸门', value: allRows.value.filter((row) => String(row.status) === '泄洪中').length, highlight: false },
+  { label: '技术供水联动待办', value: todoRows.value.length, highlight: true },
+])
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
-    count: rows.value.filter((row) => String(row.status) === status).length,
+    count: allRows.value.filter((row) => String(row.status) === status).length,
   })),
 )
 
@@ -125,6 +146,7 @@ function runAction(action: string, row: EntryRow) {
 function reload() {
   errorMessage.value = ''
   try {
+    allRows.value = listRows(meta.key)
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total

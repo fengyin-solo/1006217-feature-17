@@ -1,4 +1,6 @@
 import type { EntryRow } from './types'
+import { migrateCooling } from './cooling-migration'
+import { LEGACY_COOLING } from './legacy-cooling'
 
 // 示例数据：首次打开时播种，之后浏览器里的改动优先，重置才会回到这份。
 export const SEED_ROWS: Record<string, EntryRow[]> = {
@@ -486,50 +488,8 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
       "轴承状态": "导轴承样例3"
     }
   ],
-  "cooling": [
-    {
-      "id": 1,
-      "status": "待检查",
-      "pending": true,
-      "abnormal": false,
-      "系统编号": "COOL-0001",
-      "供水类型": "技术供水样例1",
-      "供水压力": "技术供水样例1",
-      "供水流量": "技术供水样例1",
-      "水温数值": "技术供水样例1",
-      "滤水器压差": "技术供水样例1",
-      "检查日期": "2026-09-01",
-      "系统状态": "技术供水样例1"
-    },
-    {
-      "id": 2,
-      "status": "运行中",
-      "pending": true,
-      "abnormal": true,
-      "系统编号": "COOL-0002",
-      "供水类型": "技术供水样例2",
-      "供水压力": "技术供水样例2",
-      "供水流量": "技术供水样例2",
-      "水温数值": "技术供水样例2",
-      "滤水器压差": "技术供水样例2",
-      "检查日期": "2026-09-02",
-      "系统状态": "技术供水样例2"
-    },
-    {
-      "id": 3,
-      "status": "异常",
-      "pending": false,
-      "abnormal": false,
-      "系统编号": "COOL-0003",
-      "供水类型": "技术供水样例3",
-      "供水压力": "技术供水样例3",
-      "供水流量": "技术供水样例3",
-      "水温数值": "技术供水样例3",
-      "滤水器压差": "技术供水样例3",
-      "检查日期": "2026-09-03",
-      "系统状态": "技术供水样例3"
-    }
-  ],
+  // 技术供水种子不再是占位文本：由存量清单一次性迁移而来（去重、取值统一、缺项回填）。
+  "cooling": migrateCooling(LEGACY_COOLING) as unknown as EntryRow[],
   "hydrology": [
     {
       "id": 1,
@@ -587,6 +547,7 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
       "下游预警": "泄洪操作样例1",
       "操作时间": "2026-09-01",
       "操作人员": "泄洪操作样例1",
+      "待办事项": "",
       "操作状态": "泄洪操作样例1"
     },
     {
@@ -601,6 +562,7 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
       "下游预警": "泄洪操作样例2",
       "操作时间": "2026-09-02",
       "操作人员": "泄洪操作样例2",
+      "待办事项": "",
       "操作状态": "泄洪操作样例2"
     },
     {
@@ -615,6 +577,7 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
       "下游预警": "泄洪操作样例3",
       "操作时间": "2026-09-03",
       "操作人员": "泄洪操作样例3",
+      "待办事项": "",
       "操作状态": "泄洪操作样例3"
     }
   ],
