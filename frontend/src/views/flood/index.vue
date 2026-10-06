@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>泄洪操作管理</h2>
-        <p class="page-desc">维护泄洪操作，围绕操作编号、泄洪闸号、开启孔数、泄洪流量做登记、筛选与状态流转。</p>
+        <p class="page-desc">维护泄洪操作，围绕操作编号、泄洪闸号、开启孔数、泄洪流量做登记、筛选与状态流转。技术供水的异常处置会进入下方待办清单。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记泄洪操作</button>
@@ -14,7 +14,7 @@
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
         <span class="stat-label">{{ item.label }}</span>
-        <strong class="stat-value">{{ item.value }}</strong>
+        <strong class="stat-value" :class="{ 'stat-warn': item.label.includes('待审批') && item.value > 0 }">{{ item.value }}</strong>
       </article>
     </div>
 
@@ -22,6 +22,7 @@
       <span v-for="item in statusSummary" :key="item.status" class="legend-item">
         {{ item.status }}：{{ item.count }}
       </span>
+      <span class="legend-item legend-note">其中技术供水联动待办：{{ linkedCount }} 条</span>
     </p>
 
     <form class="filter-bar" @submit.prevent="reload">
@@ -37,13 +38,21 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>联动待办</th>
           <th>当前状态</th>
           <th>可执行动作</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="String(row.id)">
+        <tr v-for="row in rows" :key="String(row.id)" :class="{ 'linked-row': row['联动来源'] }">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td>
+            <template v-if="row['联动来源']">
+              <span class="scope-badge">来自 {{ row['联动来源'] }}</span>
+              <div v-if="row['待办说明']" class="cell-note" :title="String(row['待办说明'])">{{ row['待办说明'] }}</div>
+            </template>
+            <span v-else>—</span>
+          </td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,13 +67,13 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无泄洪操作数据，可先登记泄洪操作</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无泄洪操作数据，可先登记泄洪操作</td>
         </tr>
       </tbody>
     </table>
 
     <footer class="page-foot">
-      <span>共 {{ total }} 条泄洪操作记录</span>
+      <span>共 {{ total }} 条泄洪操作记录（待审批 {{ pendingCount }} 条）</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -79,23 +88,35 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { floodPendingCount } from '@/api/cooling-domain'
+import { listRows } from '@/data/local-store'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('flood')
 const columns = ["操作编号", "泄洪闸号", "开启孔数", "泄洪流量", "下游预警", "操作时间", "操作人员", "操作状态"]
 const actions = ["提交审批", "开启泄洪", "结束泄洪"]
 const statuses = ["待审批", "已批准", "泄洪中", "已结束"]
-const stats = [{"label": "待审批操作", "value": 0}, {"label": "泄洪中闸门", "value": 0}, {"label": "今日泄洪量", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
+const allFloodRows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+// 条数全部来自数据本身：技术供水联动落入的待审批单会计入待审批操作。
+// 统计用全量，不受顶部文本检索影响。
+const pendingCount = computed(() => floodPendingCount(allFloodRows.value))
+const linkedCount = computed(() => allFloodRows.value.filter((row) => row['联动来源']).length)
+const stats = computed(() => [
+  { label: "待审批操作", value: pendingCount.value },
+  { label: "泄洪中闸门", value: allFloodRows.value.filter((row) => String(row.status) === '泄洪中').length },
+  { label: "登记总数", value: allFloodRows.value.length },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
-    count: rows.value.filter((row) => String(row.status) === status).length,
+    count: allFloodRows.value.filter((row) => String(row.status) === status).length,
   })),
 )
 
@@ -125,6 +146,8 @@ function runAction(action: string, row: EntryRow) {
 function reload() {
   errorMessage.value = ''
   try {
+    // 泄洪清单取全量（含联动待办）做统计，顶部检索框再做文本收窄展示。
+    allFloodRows.value = listRows(meta.key)
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
